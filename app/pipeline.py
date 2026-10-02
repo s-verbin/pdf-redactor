@@ -60,6 +60,8 @@ def suggest_contract_pages(texts: list[str]) -> list[int]:
             return [0, i]
     if first_appendix and first_appendix > 1:
         return [0, first_appendix - 1]
+    if first_appendix is None and len(texts) > 1:
+        return [0, len(texts) - 1]  # приложений нет — подписи обычно на последней странице
     return [0]
 
 

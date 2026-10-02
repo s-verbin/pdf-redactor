@@ -8,6 +8,9 @@
 
 **Демо:** https://pdf.sverbin.ru — песочница. Не загружайте туда реальные документы с
 чужими персональными данными: сервис для этого рассчитан на установку в своей сети.
+Для пробы есть вымышленный договор
+[examples/sample_contract.pdf](examples/sample_contract.pdf) (все имена и номера выдуманы,
+генератор — [examples/make_sample.py](examples/make_sample.py)).
 
 ## Что умеет
 
