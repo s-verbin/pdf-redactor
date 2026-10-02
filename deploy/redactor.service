@@ -1,0 +1,21 @@
+[Unit]
+Description=Обезличивание договоров аренды (PDF redactor)
+After=network.target
+
+[Service]
+User=redactor
+WorkingDirectory=/opt/redactor
+ExecStart=/opt/redactor/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8088
+Restart=on-failure
+# Один процесс: очередь живёт в этом процессе. Параллельность — через WORKERS в .env.
+
+# Хранилище задач в /run (tmpfs, оперативная память): документы не попадают на физический диск.
+# Preserve=yes — каталог не удаляется при остановке/перезапуске службы, задачи продолжатся.
+# После перезагрузки сервера /run очищается — незавершённые задачи пропадут.
+RuntimeDirectory=redactor
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+Environment=STATE_DIR=/run/redactor
+
+[Install]
+WantedBy=multi-user.target

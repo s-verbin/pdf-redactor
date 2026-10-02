@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Обезличивание договоров</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+    --accent: #2f6fed; --ok: #1a8f4c; --err: #c9362b; --warn-bg: #fff7e0; --warn: #8a6100;
+    --sel: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  main { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 32px; text-align: center; cursor: pointer;
+          transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: #f0f5ff; }
+  .drop b { color: var(--accent); }
+  .row { display: flex; gap: 12px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  select, button { font: inherit; padding: 7px 12px; border-radius: 7px; border: 1px solid var(--line);
+                   background: #fff; color: var(--text); cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .job { border-top: 1px solid var(--line); padding: 14px 0; }
+  .job:first-child { border-top: 0; padding-top: 0; }
+  .job-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .name { font-weight: 600; word-break: break-all; }
+  .status { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status.review { color: var(--accent); } .status.error { color: var(--err); }
+  .stage { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .bar i { display: block; height: 100%; width: 30%; background: var(--accent); animation: run 1.2s infinite ease-in-out; }
+  @keyframes run { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 7px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
+  .note { font-size: 13px; color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; }
+  button.link { border: 0; background: none; padding: 0; margin-top: 8px; color: var(--muted); font-size: 13px; text-decoration: underline; }
+
+  /* редактор */
+  #editor { display: none; }
+  body.editing main { display: none; }
+  body.editing #editor { display: block; }
+  .toolbar { background: var(--card); border-bottom: 1px solid var(--line);
+             padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar .title { font-weight: 600; margin-right: auto; word-break: break-all; }
+  .toolbar label { font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .help { max-width: 900px; margin: 14px auto 0; padding: 0 16px; font-size: 14px; color: var(--muted); }
+  .pages { max-width: 900px; margin: 0 auto; padding: 8px 16px 60px; }
+  .page-head { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 6px;
+               font-size: 13px; color: var(--muted); scroll-margin-top: 120px; }
+  .page-head button { font-size: 13px; padding: 3px 10px; }
+  .page-wrap.excluded .page { opacity: .35; pointer-events: none; }
+  .page-wrap.excluded .page-head span { text-decoration: line-through; }
+  .page-wrap.excluded .page::after { content: "Страница не войдёт в PDF"; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--err); font-weight: 600; }
+  .strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+           background: var(--card); }
+  .chip { font-size: 12px; min-width: 34px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line);
+          background: #fff; cursor: pointer; text-align: center; }
+  .chip.has { border-color: #333; }
+  .chip.off { background: #f1f2f4; color: #aaa; text-decoration: line-through; }
+  .chip.sug { box-shadow: inset 0 -2px 0 var(--accent); }
+  .counter { font-size: 14px; color: var(--muted); }
+  .sticky { position: sticky; top: 0; z-index: 10; }
+  .page { position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); user-select: none;
+          touch-action: none; cursor: crosshair; }
+  .page img { display: block; width: 100%; height: 100%; pointer-events: none; }
+  .box { position: absolute; background: rgba(0,0,0,.5); outline: 1px solid rgba(0,0,0,.8); cursor: move; }
+  .opaque .box { background: #000; }
+  .box.sel { outline: 2px solid var(--sel); }
+  .box .x { position: absolute; top: -11px; right: -11px; width: 22px; height: 22px; border-radius: 50%;
+            background: var(--sel); color: #fff; font-size: 14px; line-height: 22px; text-align: center;
+            cursor: pointer; display: none; }
+  .box .h { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: #fff;
+            border: 2px solid var(--sel); cursor: nwse-resize; display: none; }
+  .box.sel .x, .box.sel .h, .box:hover .x, .box:hover .h { display: block; }
+  .box.draft { background: rgba(47,111,237,.25); outline: 2px dashed var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Обезличивание договоров аренды</h1>
+  <p class="sub">Сервис находит суммы и персональные данные собственника, вы проверяете и правите закраску,
+    затем получаете PDF, из которого закрытое нельзя восстановить.</p>
+
+  <div class="card">
+    <div class="drop" id="drop">
+      Перетащите PDF сюда или <b>выберите файлы</b>
+      <input type="file" id="file" accept="application/pdf,.pdf" multiple hidden>
+    </div>
+    <div class="row">
+      <label for="kind">Тип документа:</label>
+      <select id="kind">
+        <option value="auto">Определить автоматически</option>
+        <option value="contract">Договор аренды</option>
+        <option value="act">Акт приёма-передачи</option>
+      </select>
+    </div>
+    <p class="note">Закрываются: денежные суммы, адреса собственника, паспорт, дата и место рождения, телефон, e-mail.
+      Остаются: ФИО, ИНН, ОГРНИП, подписи и печати.<br>Загруженный файл удаляется сразу после распознавания, страницы для проверки — по кнопке «Удалить» или через 30 минут без активности.</p>
+  </div>
+
+  <div class="card" id="jobs"><div class="empty">Здесь появятся загруженные документы</div></div>
+</main>
+
+<section id="editor">
+  <div class="sticky">
+    <div class="toolbar">
+      <button id="back">← К списку</button>
+      <span class="title" id="ed-title"></span>
+      <label><input type="checkbox" id="opaque"> Как в итоговом файле</label>
+      <button id="reset">Вернуть предложенные плашки</button>
+      <span class="counter" id="counter"></span>
+      <button class="ok" id="build">Собрать PDF</button>
+    </div>
+    <div class="strip" id="strip"></div>
+  </div>
+  <div class="help">
+    Проверьте каждую страницу, которая войдёт в PDF. <b>Нарисуйте</b> мышью прямоугольник, чтобы закрыть область;
+    <b>перетащите</b> плашку, чтобы сдвинуть; квадрат в углу — изменить размер; <b>×</b> или Delete — удалить.
+    Плашки показаны полупрозрачными, чтобы было видно, что под ними.<br>
+    Ненужные страницы <b>исключите</b> кнопкой над страницей — в PDF они не попадут.
+    <span id="suggest-box"></span>
+  </div>
+  <div class="pages" id="pages"></div>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KIND = { contract: "договор", act: "акт приёма-передачи" };
+const jobs = new Map();
+
+/* Список задач и правки плашек сохраняются в браузере: переживают обновление страницы
+   и перезапуск сервера. Здесь только id и координаты, самих данных документа нет. */
+const LS_JOBS = "redactor.jobs", LS_EDIT = "redactor.edit.";
+const ls = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (_) {} },
+};
+const saveIds = () => ls.set(LS_JOBS, [...jobs.values()].filter((j) => !j.local).map((j) => [j.id, j.filename]));
+
+/* ---------- загрузка и очередь ---------- */
+
+const drop = $("#drop"), input = $("#file");
+drop.onclick = () => input.click();
+input.onchange = () => { upload([...input.files]); input.value = ""; };
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); upload([...e.dataTransfer.files]); };
+
+async function upload(files) {
+  for (const f of files) {
+    const fd = new FormData();
+    fd.append("file", f);
+    fd.append("kind", $("#kind").value);
+    try {
+      const r = await fetch("/api/jobs", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || r.statusText);
+      jobs.set(j.id, j);
+      saveIds();
+    } catch (e) {
+      const id = "local-" + Math.random();
+      jobs.set(id, { id, filename: f.name, status: "error", error: e.message, local: true });
+    }
+    renderJobs();
+  }
+  poll();
+}
+
+let polling = false;
+async function poll() {
+  if (polling) return;
+  polling = true;
+  while ([...jobs.values()].some((j) => j.status === "queued" || j.status === "processing")) {
+    for (const j of jobs.values()) {
+      if (j.local || !["queued", "processing"].includes(j.status)) continue;
+      try {
+        const r = await fetch(`/api/jobs/${j.id}`);
+        if (r.ok) jobs.set(j.id, await r.json());
+        else if (r.status === 404) jobs.set(j.id, { ...j, status: "error", error: "Задача удалена на сервере (истёк срок хранения)" });
+      } catch (_) {}
+    }
+    renderJobs();
+    await new Promise((res) => setTimeout(res, 1500));
+  }
+  polling = false;
+  renderJobs();
+}
+
+function renderJobs() {
+  if (!jobs.size) return;
+  $("#jobs").innerHTML = [...jobs.values()].reverse().map((j) => {
+    let status = "", body = "";
+    if (j.status === "queued") {
+      status = j.position > 1 ? `в очереди: ${j.position}-й` : "в очереди, следующий";
+      body = `<div class="bar"><i></i></div>`;
+    } else if (j.status === "processing") {
+      status = "обрабатывается";
+      body = `<div class="stage">${esc(j.stage)}</div><div class="bar"><i></i></div>`;
+    } else if (j.status === "error") {
+      status = "ошибка";
+      body = `<div class="stage">${esc(j.error)}</div>`;
+    } else if (j.status === "review") {
+      const r = j.report;
+      status = j.built ? "PDF собран" : "ждёт проверки";
+      body = `<div class="stage">Тип: ${KIND[r.doc_kind] || r.doc_kind}; страниц: ${r.pages.length};
+          предложено плашек: ${j.pages.reduce((n, p) => n + p.boxes.length, 0)}</div>
+        ${r.warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join("")}
+        <div class="row"><button class="primary" onclick="openEditor('${j.id}')">
+          ${j.built ? "Открыть снова" : "Проверить и собрать PDF"}</button></div>`;
+    }
+    const remove = ["review", "error"].includes(j.status)
+      ? `<button class="link" onclick="removeJob('${j.id}')" title="Удалить документ с сервера">Удалить</button>` : "";
+    return `<div class="job"><div class="job-head"><span class="name">${esc(j.filename)}</span>
+      <span class="status ${j.status}">${status}</span></div>${body}${remove}</div>`;
+  }).join("");
+}
+
+async function removeJob(id) {
+  const j = jobs.get(id);
+  if (j.status === "review" && !j.built && !confirm("PDF ещё не собран. Удалить документ?")) return;
+  if (!j.local) fetch(`/api/jobs/${id}`, { method: "DELETE" }).catch(() => {});
+  jobs.delete(id);
+  ls.del(LS_EDIT + id);
+  saveIds();
+  if (!jobs.size) $("#jobs").innerHTML = `<div class="empty">Здесь появятся загруженные документы</div>`;
+  else renderJobs();
+}
+
+async function restoreJobs() {
+  const saved = ls.get(LS_JOBS) || [];
+  for (const [id, filename] of saved) {
+    try {
+      const r = await fetch(`/api/jobs/${id}`);
+      if (r.ok) jobs.set(id, await r.json());
+      else if (r.status === 404) ls.del(LS_EDIT + id);        // задача удалена на сервере — забываем
+      else jobs.set(id, { id, filename, status: "queued" });  // сервер отвечает с ошибкой — попробуем позже
+    } catch (_) {
+      jobs.set(id, { id, filename, status: "queued", position: 0 }); // сервер недоступен (перезапуск)
+    }
+  }
+  saveIds();
+  renderJobs();
+  poll();
+}
+restoreJobs();
+
+/* ---------- редактор плашек ---------- */
+
+let cur = null;        // текущая задача
+let boxes = [];        // boxes[page] = [{x0,y0,x1,y1}]
+let keep = [];         // keep[page] = войдёт ли страница в PDF
+let selected = null;   // {p, i}
+
+function openEditor(id) {
+  cur = jobs.get(id);
+  const saved = cur.edited || ls.get(LS_EDIT + id);
+  const n = cur.pages.length;
+  boxes = saved && saved.boxes && saved.boxes.length === n ? structuredClone(saved.boxes) : proposedBoxes();
+  keep = saved && saved.keep && saved.keep.length === n ? [...saved.keep] : cur.pages.map(() => true);
+  selected = null;
+  $("#ed-title").textContent = cur.filename;
+  const sug = cur.report.suggested || [];
+  $("#suggest-box").innerHTML = cur.report.doc_kind === "contract" && sug.length && sug.length < n
+    ? `<br>Для муниципальной службы обычно нужны стр. ${sug.join(" и ")}:
+       <button class="link" id="only-sug">оставить только их</button> ·
+       <button class="link" id="all-pages">вернуть все страницы</button>` : "";
+  if ($("#only-sug")) {
+    $("#only-sug").onclick = () => { keep = cur.pages.map((p) => sug.includes(p.src_page)); drawAll(); };
+    $("#all-pages").onclick = () => { keep = cur.pages.map(() => true); drawAll(); };
+  }
+  $("#pages").innerHTML = cur.pages.map((p, n) => `
+    <div class="page-wrap" id="pg-${n}">
+      <div class="page-head"><span>Страница ${p.src_page}${sug.includes(p.src_page) && sug.length < cur.pages.length ? " · предложена для отправки" : ""}</span>
+        <button data-toggle="${n}"></button></div>
+      <div class="page" data-p="${n}" style="aspect-ratio: 1 / ${p.aspect}">
+        <img src="/api/jobs/${cur.id}/pages/${n}.jpg" alt="" loading="lazy">
+      </div>
+    </div>`).join("");
+  document.querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () => {
+    const n = +b.dataset.toggle;
+    keep[n] = !keep[n];
+    if (selected && selected.p === n) selected = null;
+    drawAll();
+  });
+  document.querySelectorAll(".page").forEach(bindPage);
+  document.body.classList.add("editing");
+  window.scrollTo(0, 0);
+  drawAll();
+}
+
+const proposedBoxes = () => cur.pages.map((p) => p.boxes.map(({ x0, y0, x1, y1 }) => ({ x0, y0, x1, y1 })));
+const saveEdits = () => { if (cur) ls.set(LS_EDIT + cur.id, { boxes, keep }); };
+
+/* Полоса номеров страниц: сколько плашек, исключена ли, переход по клику. */
+function drawAll() {
+  drawBoxes();
+  const sug = cur.report.suggested || [];
+  const partial = sug.length < cur.pages.length;
+  $("#strip").innerHTML = cur.pages.map((p, n) => {
+    const cls = ["chip", keep[n] ? "" : "off", boxes[n].length ? "has" : "", partial && sug.includes(p.src_page) ? "sug" : ""].join(" ");
+    const title = `Стр. ${p.src_page}: ${keep[n] ? "войдёт в PDF" : "исключена"}, плашек: ${boxes[n].length}`;
+    return `<button class="${cls}" data-go="${n}" title="${title}">${p.src_page}${boxes[n].length ? " ▪" + boxes[n].length : ""}</button>`;
+  }).join("");
+  document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () =>
+    document.getElementById("pg-" + b.dataset.go).scrollIntoView({ behavior: "smooth" }));
+  document.querySelectorAll("[data-toggle]").forEach((b) => {
+    const n = +b.dataset.toggle;
+    b.textContent = keep[n] ? "Исключить страницу" : "Вернуть страницу";
+    document.getElementById("pg-" + n).classList.toggle("excluded", !keep[n]);
+  });
+  const k = keep.filter(Boolean).length;
+  $("#counter").textContent = `в PDF: ${k} из ${keep.length} стр.`;
+  $("#build").disabled = k === 0;
+}
+
+function closeEditor() {
+  if (cur) cur.edited = { boxes: structuredClone(boxes), keep: [...keep] };
+  document.body.classList.remove("editing");
+  renderJobs();
+}
+
+function drawBoxes(only) {
+  saveEdits();
+  document.querySelectorAll(only === undefined ? ".page" : `.page[data-p="${only}"]`).forEach((el) => {
+    const p = +el.dataset.p;
+    el.querySelectorAll(".box").forEach((b) => b.remove());
+    boxes[p].forEach((b, i) => {
+      const d = document.createElement("div");
+      d.className = "box" + (selected && selected.p === p && selected.i === i ? " sel" : "");
+      d.dataset.i = i;
+      Object.assign(d.style, pct(b));
+      d.innerHTML = `<span class="x" title="Удалить">×</span><span class="h" title="Изменить размер"></span>`;
+      el.appendChild(d);
+    });
+  });
+}
+
+const pct = (b) => ({
+  left: Math.min(b.x0, b.x1) * 100 + "%", top: Math.min(b.y0, b.y1) * 100 + "%",
+  width: Math.abs(b.x1 - b.x0) * 100 + "%", height: Math.abs(b.y1 - b.y0) * 100 + "%",
+});
+const clamp = (v) => Math.max(0, Math.min(1, v));
+
+function bindPage(el) {
+  const p = +el.dataset.p;
+  let action = null;
+
+  const pos = (e) => {
+    const r = el.getBoundingClientRect();
+    return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
+  };
+
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const pt = pos(e);
+    const boxEl = e.target.closest(".box");
+    if (e.target.classList.contains("x")) {
+      boxes[p].splice(+boxEl.dataset.i, 1);
+      selected = null;
+      drawAll();
+      return;
+    }
+    el.setPointerCapture(e.pointerId);
+    if (boxEl) {
+      const i = +boxEl.dataset.i;
+      selected = { p, i };
+      const b = boxes[p][i];
+      normalize(b);
+      action = e.target.classList.contains("h")
+        ? { type: "resize", b }
+        : { type: "move", b, dx: pt.x - b.x0, dy: pt.y - b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 };
+      drawBoxes();
+    } else {
+      selected = null;
+      const b = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y };
+      const d = document.createElement("div");
+      d.className = "box draft";
+      action = { type: "draw", b, el: d };
+      drawBoxes();
+      el.appendChild(d);
+    }
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!action) return;
+    const pt = pos(e);
+    const b = action.b;
+    if (action.type === "draw") {
+      b.x1 = pt.x; b.y1 = pt.y;
+      Object.assign(action.el.style, pct(b));
+    } else if (action.type === "resize") {
+      b.x1 = Math.max(pt.x, b.x0 + 0.005); b.y1 = Math.max(pt.y, b.y0 + 0.003);
+      drawBoxes(p);
+    } else {
+      b.x0 = clamp(pt.x - action.dx); b.y0 = clamp(pt.y - action.dy);
+      b.x0 = Math.min(b.x0, 1 - action.w); b.y0 = Math.min(b.y0, 1 - action.h);
+      b.x1 = b.x0 + action.w; b.y1 = b.y0 + action.h;
+      drawBoxes(p);
+    }
+  });
+
+  const finish = () => {
+    if (!action) return;
+    if (action.type === "draw") {
+      const b = normalize(action.b);
+      action.el.remove();
+      if (b.x1 - b.x0 > 0.004 && b.y1 - b.y0 > 0.003) {
+        boxes[p].push(b);
+        selected = { p, i: boxes[p].length - 1 };
+      }
+    }
+    action = null;
+    drawAll();
+  };
+  el.addEventListener("pointerup", finish);
+  el.addEventListener("pointercancel", finish);
+}
+
+function normalize(b) {
+  [b.x0, b.x1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)];
+  [b.y0, b.y1] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
+  return b;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!document.body.classList.contains("editing") || !selected) return;
+  if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    boxes[selected.p].splice(selected.i, 1);
+    selected = null;
+    drawAll();
+  }
+});
+
+$("#back").onclick = closeEditor;
+$("#opaque").onchange = (e) => $("#pages").classList.toggle("opaque", e.target.checked);
+$("#reset").onclick = () => {
+  if (!confirm("Вернуть плашки, предложенные автоматически? Ваши правки плашек будут потеряны.")) return;
+  boxes = proposedBoxes();
+  selected = null;
+  drawAll();
+};
+
+$("#build").onclick = async () => {
+  const btn = $("#build");
+  btn.disabled = true;
+  btn.textContent = "Собираю…";
+  try {
+    const r = await fetch(`/api/jobs/${cur.id}/build`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pages: boxes.map((pg, n) => ({ keep: keep[n], boxes: pg.map(normalize) })) }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    const blob = await r.blob();
+    const cd = r.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? decodeURIComponent(m[1]) : "обезличено.pdf";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    cur.built = true;
+  } catch (e) {
+    alert("Не удалось собрать PDF: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Собрать PDF";
+  }
+};
+</script>
+</body>
+</html>

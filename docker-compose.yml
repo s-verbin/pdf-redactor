@@ -1,0 +1,18 @@
+services:
+  redactor:
+    build: .
+    container_name: pdf-redactor
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:8088"     # наружу — только через reverse proxy
+    environment:
+      WORKERS: "1"
+      MAX_UPLOAD_MB: "30"
+      RESULT_TTL_MIN: "30"
+    volumes:
+      # Задачи переживают перезапуск контейнера. На сервере это /run/redactor (tmpfs —
+      # документы не попадают на диск); каталог создаёт systemd-tmpfiles, см. docs/admin-guide.md.
+      - ${STATE_DIR_HOST:-./data}:/data
+    # OCR съедает все ядра — ограничиваем, чтобы не мешать соседним сервисам
+    cpus: "1.5"
+    mem_limit: 1536m
