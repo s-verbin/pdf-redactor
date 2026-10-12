@@ -18,3 +18,8 @@ tessdata/
 
 # локальные настройки инструментов
 .claude/
+
+# артефакты сборки PyInstaller и архивы
+build/
+*.spec
+*.zip
